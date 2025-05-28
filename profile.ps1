@@ -5,7 +5,7 @@ $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
 $principal = New-Object Security.Principal.WindowsPrincipal $identity
 $isAdmin = $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 
-# * Check for Internet Connection to provide extensive output
+# * Check for Internet Connection to provide all terminal utils 
 $internetConnectionEstablished = Test-Connection -ComputerName google.com -Count 1 -Quiet
 if ($internetConnectionEstablished) {
     Write-Host "Internet connection established!" -ForegroundColor Green
@@ -147,11 +147,6 @@ if (Get-Module -ListAvailable -Name PSReadLine) {
 # Set the PredictionSource to HistoryAndPlugin
 Set-PSReadLineOption -PredictionSource HistoryAndPlugin
 Set-PSReadLineOption -PredictionViewStyle ListView
-Set-PSReadLineOption -Colors @{
-    Command = 'Yellow'
-    Parameter = 'Green'
-    String = 'DarkCyan'
-}
 Set-PSReadLineKeyHandler -Key Tab -Function MenuComplete
 
 # ? - Ensure Terminal-Icons module is installed before importing
@@ -816,7 +811,7 @@ if (Get-Command carapace -ErrorAction SilentlyContinue) {
     if ($internetConnectionEstablished) {
         Write-Host "Internet connection established. Installing carapace via scoop..." -ForegroundColor Green
         try {
-            scoop install carapace
+            scoop install extras/carapace-bin
             Write-Host "carapace installed successfully." -ForegroundColor Green
             $reloadpending = $true
         } catch {
