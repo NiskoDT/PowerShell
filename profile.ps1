@@ -10,7 +10,7 @@ $internetConnectionEstablished = Test-Connection -ComputerName google.com -Count
 if ($internetConnectionEstablished) {
     Write-Host "Internet connection established!" -ForegroundColor Green
 } else {
-    Write-Host "No internet connection. Commands and terminal output may be limited." -ForegroundColor Red
+    Write-Host "No internet connection. Commands and terminal output may be limited." -ForegroundColor Red -BackgroundColor Black
 }
 # Utility Functions
 function Test-CommandExists {
@@ -40,26 +40,27 @@ if (Get-Command scoop -ErrorAction SilentlyContinue) {
     Write-Host "Running scoop-search hook..."
     Invoke-Expression (&scoop-search --hook)
 } else {
-    Write-Host "Scoop is not installed. Checking internet connectivity..."
+    Write-Host "Scoop is not installed. " -ForegroundColor Yellow
+    Write-Host -NoNewline "Checking internet connectivity..." -ForegroundColor Gray
     # Check internet connection to provide output
     if ($internetConnectionEstablished) {
-        Write-Host "Installing Scoop..." -ForegroundColor Green
+        Write-Host "Installing Scoop..." -ForegroundColor White
         # Install Scoop using the official install script.
         # This script is used to install Scoop on a machine without
         # requiring admin rights.
         Invoke-RestMethod -Uri https://get.scoop.sh | Invoke-Expression
         Write-Host "Scoop installed successfully." -ForegroundColor Green
         # Install git is necessary to add buckets
-        Write-Host "Installing git..."
+        Write-Host "Installing git..." -ForegroundColor White
         scoop install git
         # Add the extras bucket
-        Write-Host "Adding extras bucket..."
+        Write-Host "Adding extras bucket..." -ForegroundColor White 
         scoop bucket add extras
         # Install scoop-search
-        Write-Host "Installing scoop-search..."
+        Write-Host "Installing scoop-search..." -ForegroundColor White
         scoop install scoop-search
         # Run the hook
-        Write-Host "Running scoop-search hook..."
+        Write-Host "Running scoop-search hook..." -ForegroundColor White
         Invoke-Expression (&scoop-search --hook)
     } else {
         Write-Host "No internet connection. Commands and terminal output may be limited." -ForegroundColor Red
@@ -165,7 +166,8 @@ if (Get-Command gsudo -ErrorAction SilentlyContinue) {
 } else {
     Write-Host "gsudo not found!" -ForegroundColor Red
     if ($internetConnectionEstablished) {
-        Write-Host "Internet connection established. Installing gsudo via scoop..." -ForegroundColor Yellow
+        Write-Host "Internet connection established. " -ForegroundColor Green 
+        Write-Host "Installing gsudo via scoop..." -ForegroundColor Gray
         try {
             scoop install gsudo
             Write-Host "gsudo installed successfully." -ForegroundColor Green
@@ -793,7 +795,7 @@ if (Get-Module -ListAvailable -Name Catppuccin) {
     $PSStyle.Formatting.Warning = $Flavor.Peach.Foreground()
 }
 else {
-    Write-Warning "Catppuccin module not found - theme not applied"
+    Write-Warning "Catppuccin module not found - theme not applied" 
 }
 
 
@@ -802,7 +804,8 @@ if (Get-Command aria2c -ErrorAction SilentlyContinue) {
     Write-Host "aria2c is installed. Loading..." -ForegroundColor Green
 } else {
     if ($internetConnectionEstablished) {
-        Write-Host "Internet connection established. Installing aria2c via scoop..." -ForegroundColor Green
+        Write-Host "Internet connection established. " -ForegroundColor Green
+        Write-Host "Installing aria2c via scoop..." -ForegroundColor Gray
         try {
             scoop install aria2
             Write-Host "aria2c installed successfully." -ForegroundColor Green
@@ -913,10 +916,6 @@ if ($reloadpending -eq $true) {
     # cls
 }
 
-# Contents to Display at the Final Initiallazation
-# ? - Clear the screen
-# Disable to show any success messages or errors
-# clear
 Write-Host ""
 
 # * THIS WILL SCROLL THE PROMPT TO THE TOP
