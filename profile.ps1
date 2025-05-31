@@ -798,14 +798,12 @@ else {
     Write-Warning "Catppuccin module not found - theme not applied" 
 }
 
-
 # ? - Aria2c CLI
 if (Get-Command aria2c -ErrorAction SilentlyContinue) {
     Write-Host "aria2c is installed. Loading..." -ForegroundColor Green
 } else {
     if ($internetConnectionEstablished) {
-        Write-Host "Internet connection established. " -ForegroundColor Green
-        Write-Host "Installing aria2c via scoop..." -ForegroundColor Gray
+        Write-Host "Internet connection established. Installing aria2c via scoop..." -ForegroundColor Green
         try {
             scoop install aria2
             Write-Host "aria2c installed successfully." -ForegroundColor Green
