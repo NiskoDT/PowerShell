@@ -783,21 +783,37 @@ if (Get-Module -ListAvailable -Name Catppuccin) {
     
     Set-PSReadLineOption -Colors $Colors
 
-    # Formatting colors (PS 7.2+ only)
-    if ($PSVersionTable.PSVersion -ge [version]"7.2") {
-        $PSStyle.Formatting.Debug = $Flavor.Sky.Foreground()
-        $PSStyle.Formatting.Error = $Flavor.Red.Foreground()
-        $PSStyle.Formatting.ErrorAccent = $Flavor.Blue.Foreground()
-        $PSStyle.Formatting.FormatAccent = $Flavor.Teal.Foreground()
-        $PSStyle.Formatting.TableHeader = $Flavor.Rosewater.Foreground()
-        $PSStyle.Formatting.Verbose = $Flavor.Yellow.Foreground()
-        $PSStyle.Formatting.Warning = $Flavor.Peach.Foreground()
-    }
+    # Formatting colors (PS 7.2+ onlyo)
+    $PSStyle.Formatting.Debug = $Flavor.Sky.Foreground()
+    $PSStyle.Formatting.Error = $Flavor.Red.Foreground()
+    $PSStyle.Formatting.ErrorAccent = $Flavor.Blue.Foreground()
+    $PSStyle.Formatting.FormatAccent = $Flavor.Teal.Foreground()
+    $PSStyle.Formatting.TableHeader = $Flavor.Rosewater.Foreground()
+    $PSStyle.Formatting.Verbose = $Flavor.Yellow.Foreground()
+    $PSStyle.Formatting.Warning = $Flavor.Peach.Foreground()
 }
 else {
     Write-Warning "Catppuccin module not found - theme not applied"
 }
 
+
+# ? - Aria2c CLI
+if (Get-Command aria2c -ErrorAction SilentlyContinue) {
+    Write-Host "aria2c is installed. Loading..." -ForegroundColor Green
+} else {
+    if ($internetConnectionEstablished) {
+        Write-Host "Internet connection established. Installing aria2c via scoop..." -ForegroundColor Green
+        try {
+            scoop install aria2
+            Write-Host "aria2c installed successfully." -ForegroundColor Green
+            $reloadpending = $true
+        } catch {
+            Write-Host "An Error Occurred. Check the error above. Running aria2c will not work." -ForegroundColor Red
+        }
+    } else {
+        Write-Host "No internet connection available. Running aria2c will not work." -ForegroundColor Red
+    }
+}
 
 # ? - Carapace
 # Check if carapace is installed then initialize
@@ -901,6 +917,8 @@ if ($reloadpending -eq $true) {
 # ? - Clear the screen
 # Disable to show any success messages or errors
 # clear
+Write-Host ""
+
 # ? - fastfetch
 if (Get-Command fastfetch -ErrorAction SilentlyContinue) {
     fastfetch
