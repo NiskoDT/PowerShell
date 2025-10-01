@@ -15,7 +15,7 @@
       <S N="Copyright">(c) Brandon Olin. All rights reserved.</S>
       <DT N="PublishedDate">2023-07-06T04:55:30+07:00</DT>
       <Obj N="InstalledDate" RefId="1">
-        <DT>2025-05-15T11:23:56.8747487+07:00</DT>
+        <DT>2025-06-11T00:53:13.9030388+07:00</DT>
         <MS>
           <Obj N="DisplayHint" RefId="2">
             <TN RefId="1">
@@ -55,15 +55,8 @@
         </TN>
         <DCT>
           <En>
-            <S N="Key">RoleCapability</S>
-            <Obj N="Value" RefId="5">
-              <TNRef RefId="2" />
-              <LST />
-            </Obj>
-          </En>
-          <En>
             <S N="Key">Function</S>
-            <Obj N="Value" RefId="6">
+            <Obj N="Value" RefId="5">
               <TNRef RefId="2" />
               <LST>
                 <S>Add-TerminalIconsColorTheme</S>
@@ -83,7 +76,18 @@
           </En>
           <En>
             <S N="Key">Workflow</S>
-            <Ref N="Value" RefId="5" />
+            <Obj N="Value" RefId="6">
+              <TNRef RefId="2" />
+              <LST />
+            </Obj>
+          </En>
+          <En>
+            <S N="Key">DscResource</S>
+            <Ref N="Value" RefId="6" />
+          </En>
+          <En>
+            <S N="Key">RoleCapability</S>
+            <Ref N="Value" RefId="6" />
           </En>
           <En>
             <S N="Key">Command</S>
@@ -107,11 +111,7 @@
           </En>
           <En>
             <S N="Key">Cmdlet</S>
-            <Ref N="Value" RefId="5" />
-          </En>
-          <En>
-            <S N="Key">DscResource</S>
-            <Ref N="Value" RefId="5" />
+            <Ref N="Value" RefId="6" />
           </En>
         </DCT>
       </Obj>
@@ -136,15 +136,15 @@
           <S N="releaseNotes">https://raw.githubusercontent.com/devblackops/Terminal-Icons/master/CHANGELOG.md</S>
           <S N="isLatestVersion">True</S>
           <S N="isAbsoluteLatestVersion">True</S>
-          <S N="versionDownloadCount">6125549</S>
-          <S N="downloadCount">6375032</S>
+          <S N="versionDownloadCount">6159288</S>
+          <S N="downloadCount">6408877</S>
           <S N="packageSize">127437</S>
           <S N="published">06/07/2023 04:55:30 +07:00</S>
           <S N="created">06/07/2023 04:55:30 +07:00</S>
-          <S N="lastUpdated">15/05/2025 04:20:01 +07:00</S>
+          <S N="lastUpdated">10/06/2025 17:50:00 +07:00</S>
           <S N="tags">Color Terminal Console NerdFonts Icon PSModule PSFunction_Add-TerminalIconsColorTheme PSCommand_Add-TerminalIconsColorTheme PSFunction_Add-TerminalIconsIconTheme PSCommand_Add-TerminalIconsIconTheme PSFunction_Format-TerminalIcons PSCommand_Format-TerminalIcons PSFunction_Get-TerminalIconsColorTheme PSCommand_Get-TerminalIconsColorTheme PSFunction_Get-TerminalIconsGlyphs PSCommand_Get-TerminalIconsGlyphs PSFunction_Get-TerminalIconsIconTheme PSCommand_Get-TerminalIconsIconTheme PSFunction_Get-TerminalIconsTheme PSCommand_Get-TerminalIconsTheme PSFunction_Invoke-TerminalIconsThemeMigration PSCommand_Invoke-TerminalIconsThemeMigration PSFunction_Remove-TerminalIconsTheme PSCommand_Remove-TerminalIconsTheme PSFunction_Set-TerminalIconsIcon PSCommand_Set-TerminalIconsIcon PSFunction_Set-TerminalIconsTheme PSCommand_Set-TerminalIconsTheme PSFunction_Show-TerminalIconsTheme PSCommand_Show-TerminalIconsTheme PSIncludes_Function</S>
           <S N="developmentDependency">False</S>
-          <S N="updated">2025-05-15T04:20:01Z</S>
+          <S N="updated">2025-06-10T17:50:00Z</S>
           <S N="NormalizedVersion">0.11.0</S>
           <S N="Authors">Brandon Olin</S>
           <S N="IsPrerelease">false</S>

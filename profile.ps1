@@ -726,6 +726,17 @@ Register-ArgumentCompleter -CommandName 'datree' -ScriptBlock {
 
 #region My Profile
 
+# Set custom alias
+# if (Get-Command gping -ErrorAction SilentlyContinue) {
+#     Remove-Item Alias:\ping -ErrorAction SilentlyContinue
+#     Set-Alias ping gping
+#     function ping { gping @args }
+# }
+# else {
+#     Write-Host "No gping found. Will use regular ping instead."
+# }
+
+
 #region conda initialize
 # !! Contents within this block are managed by 'conda init' !!
 If (Test-Path "C:\Users\Epb\miniforge3\Scripts\conda.exe") {
@@ -955,6 +966,16 @@ if ($isAdmin -and $Host.Name -eq "ConsoleHost") {
     Write-Host "==============================================================" -ForegroundColor Green
     Write-Host ""
 }
+
+# Enhanced YouTube Downloader Function
+# function yt-enhanced {
+#     & "$env:USERPROFILE\Quick_Scripts\Yt-Dlp\Yt-Dlp-Enhanced.ps1" @args
+# }
+
+# # Alternative short name for YouTube downloader
+# function ytdl {
+#     & "$env:USERPROFILE\Quick_Scripts\Yt-Dlp\Yt-Dlp-Enhanced.ps1" @args
+# }
 
 # zoxide init 
 # ! MUST BE LAST or else it will not work
