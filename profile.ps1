@@ -827,6 +827,24 @@ if (Get-Command aria2c -ErrorAction SilentlyContinue) {
     }
 }
 
+# ? - Ripgrep
+if (Get-Command rg -ErrorAction SilentlyContinue) {
+    Write-Host "ripgrep is installed. Loading..." -ForegroundColor Green
+} else {
+    if ($internetConnectionEstablished) {
+        Write-Host "Internet connection established. Installing ripgrep via scoop..." -ForegroundColor Green
+        try {
+            scoop install ripgrep
+            Write-Host "ripgrep installed successfully." -ForegroundColor Green
+            $reloadpending = $true
+        } catch {
+            Write-Host "An Error Occurred. Check the error above. Running ripgrep will not work." -ForegroundColor Red
+        }
+    } else {
+        Write-Host "No internet connection available. Running ripgrep will not work." -ForegroundColor Red
+    }
+}
+
 # ? - Carapace
 # Check if carapace is installed then initialize
 if (Get-Command carapace -ErrorAction SilentlyContinue) {
@@ -941,7 +959,6 @@ function Set-PromptToTop {
     # Move cursor to top-left corner (0,0)
     [console]::SetCursorPosition(0,0)
 }
-
 # Scroll prompt to top to "hide" previous output
 Set-PromptToTop
 
