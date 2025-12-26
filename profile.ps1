@@ -972,27 +972,14 @@ if (Get-Command fastfetch -ErrorAction SilentlyContinue) {
 # If running with elevated privileges and in a command line host, change console color to red
 if ($isAdmin -and $Host.Name -eq "ConsoleHost") {
     Write-Host ""
-    Write-Host "==============================================================" -ForegroundColor Red
-    Write-Host "|  WARNING: Running with elevated privileges.                |" -ForegroundColor Red
-    Write-Host "==============================================================" -ForegroundColor Red
+    Write-Host "WARNING: Running with ELEVATED privileges." -ForegroundColor Red
     Write-Host ""
 } else {
     Write-Host ""
-    Write-Host "==============================================================" -ForegroundColor Green
-    Write-Host "|  Running with normal user privileges.                      |" -ForegroundColor Green
-    Write-Host "==============================================================" -ForegroundColor Green
+    Write-Host "Running with normal user privileges." -ForegroundColor Green
     Write-Host ""
 }
 
-# Enhanced YouTube Downloader Function
-# function yt-enhanced {
-#     & "$env:USERPROFILE\Quick_Scripts\Yt-Dlp\Yt-Dlp-Enhanced.ps1" @args
-# }
-
-# # Alternative short name for YouTube downloader
-# function ytdl {
-#     & "$env:USERPROFILE\Quick_Scripts\Yt-Dlp\Yt-Dlp-Enhanced.ps1" @args
-# }
 
 # zoxide init 
 # ! MUST BE LAST or else it will not work
