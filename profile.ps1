@@ -1,3 +1,6 @@
+Write-Host "Profile is now loading for the first time in this session..." -ForegroundColor Green
+Write-Host "Press Ctrl + C before input is available to cancel!" -ForegroundColor Yellow
+
 #region Initialization of states
 # * Admin Check
 # Find out if the current user identity is elevated (has admin rights)
@@ -109,24 +112,27 @@ if (-not (Get-Command choco -ErrorAction SilentlyContinue) -and -not (Get-Comman
 # Modules and External Profiles
 # - Update all installed PowerShell modules to the latest version
 if ($internetConnectionEstablished) {
-  $outdatedModules = Get-InstalledModule | Where-Object {
+    $outdatedModules = Get-InstalledModule | Where-Object {
     $latestVersion = (Find-Module -Name $_.Name -Repository PSGallery).Version
     $_.Version -ne $latestVersion
-  }
-  if ($outdatedModules) {
+    }
+}
+if ($outdatedModules) {
     Write-Host "Updating outdated modules..." -ForegroundColor Green
     $outdatedModules | ForEach-Object {
-      $latestVersion = (Find-Module -Name $_.Name -Repository PSGallery).Version
-      Write-Host "Updating Module $($_.Name) from version $($_.Version) to version $($latestVersion)" -ForegroundColor Yellow
-      Update-Module -Name $_.Name -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
+    $latestVersion = (Find-Module -Name $_.Name -Repository PSGallery).Version
+    Write-Host "Updating Module $($_.Name) from version $($_.Version) to version $($latestVersion)" -ForegroundColor Yellow
+    Update-Module -Name $_.Name -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
     }
     Write-Host "Module updates complete." -ForegroundColor Green
-  } else {
+} 
+else {
     Write-Host "All modules are up to date." -ForegroundColor Cyan
-  }
-} else {
-  Write-Host "No internet connection established. Skipping module updates." -ForegroundColor Red
 }
+else {
+    Write-Host "No internet connection established. Skipping module updates." -ForegroundColor Red
+}
+
 # * - Set up PSReadLine
 # Validate if PSReadLine module is installed
 if (Get-Module -ListAvailable -Name PSReadLine) {
@@ -293,35 +299,35 @@ function ff($name) {
 # ! THIS FUNCTION IS NOT SECURE. USE AT YOUR OWN RISK. DO NOT SHARE YOUR IP ADDRESS.
 # ! IF SOMEONE IS ASKING FOR YOUR PUBLIC IP ADDRESS, 101% YOU ARE BEING SCAMMED.
 function Get-IP {
-  $publicIpv4 = $null
-  $publicIpv6 = $null
-
-  try {
-    $publicIpv4 = (Invoke-WebRequest http://ifconfig.me/ip).Content
-  } catch {
-    Write-Host "Error retrieving public IPv4 address: $($Error[0].Message)"
-  }
-
-  try {
-    $publicIpv6 = (Invoke-WebRequest http://ifconfig.me/ip6).Content
-  } catch {
-    Write-Host "Error retrieving public IPv6 address: $($Error[0].Message)"
-  }
-
-  $localIpv4 = (Get-NetIPAddress -AddressFamily IPv4 -InterfaceAlias Ethernet).IPAddress
-  $localIpv6 = (Get-NetIPAddress -AddressFamily IPv6 -InterfaceAlias Ethernet).IPAddress
-
-  Write-Host "Public IP:" -ForegroundColor Yellow
-  Write-Host "  IPv4: " -NoNewline -ForegroundColor Green
-  Write-Host $publicIpv4
-  Write-Host "  IPv6: " -NoNewline -ForegroundColor Blue
-  Write-Host $publicIpv6
-
-  Write-Host "Local IP:" -ForegroundColor Yellow
-  Write-Host "  IPv4: " -NoNewline -ForegroundColor Green
-  Write-Host $localIpv4
-  Write-Host "  IPv6: " -NoNewline -ForegroundColor Blue
-  Write-Host $localIpv6
+    $publicIpv4 = $null
+    $publicIpv6 = $null
+    
+    try {
+        $publicIpv4 = (Invoke-WebRequest http://ifconfig.me/ip).Content
+    } catch {
+        Write-Host "Error retrieving public IPv4 address: $($Error[0].Message)"
+    }
+    
+    try {
+        $publicIpv6 = (Invoke-WebRequest http://ifconfig.me/ip6).Content
+    } catch {
+        Write-Host "Error retrieving public IPv6 address: $($Error[0].Message)"
+    }
+    
+    $localIpv4 = (Get-NetIPAddress -AddressFamily IPv4 -InterfaceAlias Ethernet).IPAddress
+    $localIpv6 = (Get-NetIPAddress -AddressFamily IPv6 -InterfaceAlias Ethernet).IPAddress
+    
+    Write-Host "Public IP:" -ForegroundColor Yellow
+    Write-Host "  IPv4: " -NoNewline -ForegroundColor Green
+    Write-Host $publicIpv4
+    Write-Host "  IPv6: " -NoNewline -ForegroundColor Blue
+    Write-Host $publicIpv6
+    
+    Write-Host "Local IP:" -ForegroundColor Yellow
+    Write-Host "  IPv4: " -NoNewline -ForegroundColor Green
+    Write-Host $localIpv4
+    Write-Host "  IPv6: " -NoNewline -ForegroundColor Blue
+    Write-Host $localIpv6
 }
 # System Utilities
 # - Check Uptime
@@ -635,8 +641,7 @@ Register-ArgumentCompleter -CommandName 'datree' -ScriptBlock {
         }
     }
 
-    if ((($Directive -band $ShellCompDirectiveFilterFileExt) -ne 0 ) -or
-       (($Directive -band $ShellCompDirectiveFilterDirs) -ne 0 ))  {
+    if ((($Directive -band $ShellCompDirectiveFilterFileExt) -ne 0 ) -or (($Directive -band $ShellCompDirectiveFilterDirs) -ne 0 )) {
         __datree_debug "ShellCompDirectiveFilterFileExt ShellCompDirectiveFilterDirs are not supported"
 
         # return here to prevent the completion of the extensions
@@ -759,8 +764,8 @@ if (Get-Module -ListAvailable -Name Catppuccin) {
     # Modified prompt function
     function prompt {
         $(if (Test-Path variable:/PSDebugContext) { "$($Flavor.Red.Foreground())[DBG]: " }
-          else { '' }) + "$($Flavor.Teal.Foreground())PS $($Flavor.Yellow.Foreground())" + $(Get-Location) +
-            "$($Flavor.Green.Foreground())" + $(if ($NestedPromptLevel -ge 1) { '>>' }) + '> ' + $($PSStyle.Reset)
+            else { '' }) + "$($Flavor.Teal.Foreground())PS $($Flavor.Yellow.Foreground())" + $(Get-Location) +
+                "$($Flavor.Green.Foreground())" + $(if ($NestedPromptLevel -ge 1) { '>>' }) + '> ' + $($PSStyle.Reset)
     }
 
     # FZF configuration
