@@ -1,5 +1,6 @@
 Write-Host "Profile is now loading for the first time in this session..." -ForegroundColor Green
 Write-Host "Press Ctrl + C before input is available to cancel!" -ForegroundColor Yellow
+Write-Host ""
 
 #region Initialization of states
 # * Admin Check
@@ -125,19 +126,17 @@ if ($outdatedModules) {
     Update-Module -Name $_.Name -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
     }
     Write-Host "Module updates complete." -ForegroundColor Green
-} 
-else {
-    Write-Host "All modules are up to date." -ForegroundColor Cyan
-}
-else {
+} elseif (!$internetConnectionEstablished) {
     Write-Host "No internet connection established. Skipping module updates." -ForegroundColor Red
+} else {
+    Write-Host "All modules are up to date." -ForegroundColor Cyan
 }
 
 # * - Set up PSReadLine
 # Validate if PSReadLine module is installed
 if (Get-Module -ListAvailable -Name PSReadLine) {
-    # If PSReadLine module is installed, import it
-    Import-Module "PSReadline"
+    # If PSReadLine module is already loaded, skip importing
+    # Write-Host "PSReadLine module is already loaded. Skipping import." -ForegroundColor Yellow
 } else {
     # If PSReadLine module is not installed, install it
     try {
@@ -148,8 +147,16 @@ if (Get-Module -ListAvailable -Name PSReadLine) {
         Write-Error "Failed to install PSReadLine module. Error: $_"
         return
     }
-    # Import PSReadLine module after successful installation
-    Import-Module "PSReadline"
+    
+    # Check if the module is now loaded
+    if (Get-Module -ListAvailable -Name PSReadLine) {
+        # If the module is loaded after installation, import it
+        Import-Module "PSReadline"
+    } else {
+        # If the module is still not loaded, handle the error
+        Write-Error "Failed to load PSReadLine module after installation."
+        return
+    }
 }
 # Set the PredictionSource to HistoryAndPlugin
 Set-PSReadLineOption -PredictionSource HistoryAndPlugin
