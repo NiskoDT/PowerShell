@@ -363,6 +363,7 @@ function grep {
 }
 
 # Override cat: calls bat instead. Adds syntax highlighting, line numbers, git gutter.
+Remove-Item Alias:\cat -Force -ErrorAction SilentlyContinue
 function cat {
     if (Get-Command bat -ErrorAction SilentlyContinue) {
         bat @args
