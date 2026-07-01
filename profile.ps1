@@ -371,6 +371,15 @@ function cat {
     }
 }
 
+# Override find: calls fd instead. Faster, respects .gitignore, color output.
+function find {
+    if (Get-Command fd -ErrorAction SilentlyContinue) {
+        fd @args
+    } else {
+        Get-ChildItem -Recurse @args
+    }
+}
+
 # Git Shortcuts
 function gs { git status }
 function ga { git add . }
@@ -464,7 +473,9 @@ $tools = @(
     @{Name="rg"; Display="ripgrep"; InstallCmd="scoop install ripgrep"},
     @{Name="gping"; Display="gping"; InstallCmd="scoop install gping"},
     @{Name="bat"; Display="bat"; InstallCmd="scoop install bat"},
-    @{Name="fzf"; Display="fzf"; InstallCmd="scoop install fzf"}
+    @{Name="fzf"; Display="fzf"; InstallCmd="scoop install fzf"},
+    @{Name="fd"; Display="fd"; InstallCmd="scoop install fd"},
+    @{Name="jq"; Display="jq"; InstallCmd="scoop install jq"}
 )
 foreach ($tool in $tools) {
     if (Get-Command $tool.Name -ErrorAction SilentlyContinue) {
