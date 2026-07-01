@@ -463,7 +463,8 @@ $tools = @(
     @{Name="aria2c"; Display="aria2c"; InstallCmd="scoop install aria2"},
     @{Name="rg"; Display="ripgrep"; InstallCmd="scoop install ripgrep"},
     @{Name="gping"; Display="gping"; InstallCmd="scoop install gping"},
-    @{Name="bat"; Display="bat"; InstallCmd="scoop install bat"}
+    @{Name="bat"; Display="bat"; InstallCmd="scoop install bat"},
+    @{Name="fzf"; Display="fzf"; InstallCmd="scoop install fzf"}
 )
 foreach ($tool in $tools) {
     if (Get-Command $tool.Name -ErrorAction SilentlyContinue) {
