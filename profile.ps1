@@ -1,3 +1,8 @@
+# Guard: prevents double-load when both $PROFILE.CurrentUserAllHosts (profile.ps1)
+# and $PROFILE.CurrentUserCurrentHost (Microsoft.PowerShell_profile.ps1 → dot-sources this) fire.
+if ($global:__ps_profile_loaded) { return }
+$global:__ps_profile_loaded = $true
+
 Write-Host "Loading profile..." -ForegroundColor Green
 Write-Host ""
 
