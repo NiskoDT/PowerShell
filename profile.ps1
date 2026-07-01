@@ -6,6 +6,13 @@ $global:__ps_profile_loaded = $true
 Write-Host "Loading profile..." -ForegroundColor Green
 Write-Host ""
 
+# --- UTF-8 Encoding Configuration ---
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+[Console]::InputEncoding  = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+chcp 65001 | Out-Null
+$PSDefaultParameterValues['*:Encoding'] = 'utf8NoBOM'
+
 #region Initialization of states
 # * Admin Check and Internet Connection
 $internetConnectionEstablished = Test-Connection -ComputerName google.com -Count 1 -Quiet
