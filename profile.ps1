@@ -1,30 +1,24 @@
-Write-Host "Profile is now loading for the first time in this session..." -ForegroundColor Green
-Write-Host "Press Ctrl + C before input is available to cancel!" -ForegroundColor Yellow
+Write-Host "Loading profile..." -ForegroundColor Green
 Write-Host ""
 
 #region Initialization of states
-# * Admin Check
-# Find out if the current user identity is elevated (has admin rights)
-$identity = [Security.Principal.WindowsIdentity]::GetCurrent()
-$principal = New-Object Security.Principal.WindowsPrincipal $identity
-$isAdmin = $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-
-# * Check for Internet Connection to provide all terminal utils 
+# * Admin Check and Internet Connection
 $internetConnectionEstablished = Test-Connection -ComputerName google.com -Count 1 -Quiet
 if ($internetConnectionEstablished) {
     Write-Host "Internet connection established!" -ForegroundColor Green
 } else {
     Write-Host "No internet connection. Commands and terminal output may be limited." -ForegroundColor Red -BackgroundColor Black
 }
+
 # Utility Functions
 function Test-CommandExists {
     param($command)
     $exists = $null -ne (Get-Command $command -ErrorAction SilentlyContinue)
     return $exists
 }
+#endregion Initialization of states
 
 #region Profile Utilities
-# - Reload Profile
 function rld {
     Write-Host ""
     Write-Host "Profile will be reloaded in 5 seconds..." -ForegroundColor Yellow
@@ -32,428 +26,359 @@ function rld {
     Start-Sleep -Seconds 5
     . $PROFILE.CurrentUserAllHosts
 }
-# If this is $false until the end, then no profile reload will be triggered
-$reloadpending = $false
+#endregion Profile Utilities
 
 #region Terminal Package Managers
-# Check if Scoop is installed. If not, install it.
-# If it is installed, run the scoop-search hook to install
-# missing packages.
-if (Get-Command scoop -ErrorAction SilentlyContinue) {
-    # Run the hook
-    Write-Host "Running scoop-search hook..."
-    Invoke-Expression (&scoop-search --hook)
-} else {
-    Write-Host "Scoop is not installed. " -ForegroundColor Yellow
-    Write-Host -NoNewline "Checking internet connectivity..." -ForegroundColor Gray
-    # Check internet connection to provide output
-    if ($internetConnectionEstablished) {
-        Write-Host "Installing Scoop..." -ForegroundColor White
-        # Install Scoop using the official install script.
-        # This script is used to install Scoop on a machine without
-        # requiring admin rights.
-        Invoke-RestMethod -Uri https://get.scoop.sh | Invoke-Expression
-        Write-Host "Scoop installed successfully." -ForegroundColor Green
-        # Install git is necessary to add buckets
-        Write-Host "Installing git..." -ForegroundColor White
-        scoop install git
-        # Add the extras bucket
-        Write-Host "Adding extras bucket..." -ForegroundColor White 
-        scoop bucket add extras
-        # Install scoop-search
-        Write-Host "Installing scoop-search..." -ForegroundColor White
-        scoop install scoop-search
-        # Run the hook
-        Write-Host "Running scoop-search hook..." -ForegroundColor White
+# Scoop
+$script:scoopAvailable = $null -ne (Get-Command scoop -ErrorAction SilentlyContinue)
+if ($script:scoopAvailable) {
+    if (-not $script:scoopSearchDone) {
+        Write-Host "Running scoop-search hook..."
         Invoke-Expression (&scoop-search --hook)
-    } else {
-        Write-Host "No internet connection. Commands and terminal output may be limited." -ForegroundColor Red
+        $script:scoopSearchDone = $true
     }
+} else {
+    Write-Host "Scoop is not installed." -ForegroundColor Yellow
+    Write-Host "  Install manually: iex (irm https://get.scoop.sh)" -ForegroundColor Gray
 }
 
-# ? Install Chocolatey if it is not already installed.
-# This code is run when Chocolatey is not installed or
-# if it is installed but not in the user's PATH.
-# If the user is an admin, the user will be prompted to
-# install Chocolatey.
-# If the user is not an admin, the user will be prompted
-# to run the command with admin rights.
-if (-not (Get-Command choco -ErrorAction SilentlyContinue) -and -not (Get-Command chocolatey -ErrorAction SilentlyContinue)) {
-    if ($isAdmin) {
-        $choice = Read-Host "Chocolatey is not installed. Do you want to install it now? [Y/n]"
-        if ($choice -eq "Y" -or $choice -eq "y" -or $choice -eq "") {
-            Write-Host "Installing Chocolatey..." -ForegroundColor Green
-            # Install Chocolatey using the official install script.
-            [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
-            Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
-            Write-Host "Chocolatey installed successfully." -ForegroundColor Green
-            $reloadpending = $true
-        } else {
-            Write-Host "Skipping Chocolatey install." -ForegroundColor Yellow
-        }
-    } else {
-        $choice = Read-Host "Chocolatey is not installed. Do you want to install it now? You will be prompted for admin rights. [Y/n]"
-        if ($choice -eq "Y" -or $choice -eq "y" -or $choice -eq "") {
-            # Prompt for administrator privileges and install Chocolatey
-            Start-Process powershell.exe -ArgumentList "-noprofile -noexit", "-Command", "[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))" -Verb RunAs -Wait
-            Write-Host "Chocolatey installed successfully." -ForegroundColor Green
-            $reloadpending = $true
-        } else {
-            Write-Host "Skipping Chocolatey install. Admin rights is denied." -ForegroundColor Yellow
-        }
-    }
-} else {
-    # Import the Chocolatey profile if it is installed.
+# Chocolatey
+if (Get-Command choco -ErrorAction SilentlyContinue) {
     $ChocolateyProfile = "$env:ChocolateyInstall\helpers\chocolateyProfile.psm1"
     if (Test-Path($ChocolateyProfile)) {
         Import-Module "$ChocolateyProfile"
     }
+} else {
+    Write-Host "Chocolatey is not installed." -ForegroundColor Yellow
 }
 
-# Modules and External Profiles
-# - Update all installed PowerShell modules to the latest version
-if ($internetConnectionEstablished) {
-    $outdatedModules = Get-InstalledModule | Where-Object {
-    $latestVersion = (Find-Module -Name $_.Name -Repository PSGallery).Version
-    $_.Version -ne $latestVersion
-    }
-}
-if ($outdatedModules) {
-    Write-Host "Updating outdated modules..." -ForegroundColor Green
-    $outdatedModules | ForEach-Object {
-    $latestVersion = (Find-Module -Name $_.Name -Repository PSGallery).Version
-    Write-Host "Updating Module $($_.Name) from version $($_.Version) to version $($latestVersion)" -ForegroundColor Yellow
-    Update-Module -Name $_.Name -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
-    }
-    Write-Host "Module updates complete." -ForegroundColor Green
-} elseif (!$internetConnectionEstablished) {
-    Write-Host "No internet connection established. Skipping module updates." -ForegroundColor Red
-} else {
-    Write-Host "All modules are up to date." -ForegroundColor Cyan
-}
-
-# * - Set up PSReadLine
-# Validate if PSReadLine module is installed
-if (Get-Module -ListAvailable -Name PSReadLine) {
-    # If PSReadLine module is already loaded, skip importing
-    # Write-Host "PSReadLine module is already loaded. Skipping import." -ForegroundColor Yellow
-} else {
-    # If PSReadLine module is not installed, install it
+# * - PSReadLine
+if (-not (Get-Module -ListAvailable -Name PSReadLine)) {
     try {
-        # Attempt to install PSReadLine module from PSGallery
         Install-Module -Name PSReadLine -Force -Repository PSGallery
     } catch {
-        # If installation fails, handle the error
         Write-Error "Failed to install PSReadLine module. Error: $_"
         return
     }
-    
-    # Check if the module is now loaded
     if (Get-Module -ListAvailable -Name PSReadLine) {
-        # If the module is loaded after installation, import it
         Import-Module "PSReadline"
     } else {
-        # If the module is still not loaded, handle the error
         Write-Error "Failed to load PSReadLine module after installation."
         return
     }
 }
-# Set the PredictionSource to HistoryAndPlugin
+
 Set-PSReadLineOption -PredictionSource HistoryAndPlugin
 Set-PSReadLineOption -PredictionViewStyle ListView
-Set-PSReadLineKeyHandler -Key Tab -Function MenuComplete
 
-# ? - Ensure Terminal-Icons module is installed before importing
-if (-not (Get-Module -ListAvailable -Name Terminal-Icons)) {
-    Install-Module -Name Terminal-Icons -Scope CurrentUser -Force -SkipPublisherCheck
-} 
-Import-Module -Name Terminal-Icons
+# Key Bindings
+Set-PSReadLineKeyHandler -Key UpArrow -Function HistorySearchBackward
+Set-PSReadLineKeyHandler -Key DownArrow -Function HistorySearchForward
+Set-PSReadLineKeyHandler -Chord 'Ctrl+d' -Function DeleteChar
+Set-PSReadLineKeyHandler -Chord 'Ctrl+w' -Function BackwardDeleteWord
+Set-PSReadLineKeyHandler -Chord 'Alt+d' -Function DeleteWord
+Set-PSReadLineKeyHandler -Chord 'Ctrl+LeftArrow' -Function BackwardWord
+Set-PSReadLineKeyHandler -Chord 'Ctrl+RightArrow' -Function ForwardWord
+Set-PSReadLineKeyHandler -Chord 'Ctrl+z' -Function Undo
+Set-PSReadLineKeyHandler -Chord 'Ctrl+y' -Function Redo
 
-# ? - Imports the Gsudo Module
-if (Get-Command gsudo -ErrorAction SilentlyContinue) {
-    # Write-Host "gsudo is installed. Loading..." -ForegroundColor Cyan
-    Import-Module 'gsudoModule'
-    Write-Host "gsudo is installed." -ForegroundColor Cyan
-    Set-Alias -Name su -Value gsudo
-    Set-Alias -Name sudo -Value gsudo
+# PSReadLine Colors
+Set-PSReadLineOption -Colors @{
+    Command   = '#87CEEB'
+    Parameter = '#98FB98'
+    Operator  = '#FFB6C1'
+    Variable  = '#DDA0DD'
+    String    = '#FFDAB9'
+    Number    = '#B0E0E6'
+    Type      = '#F0E68C'
+    Comment   = '#D3D3D3'
+    Keyword   = '#8367c7'
+    Error     = '#FF6347'
+}
+
+# ? - Terminal-Icons
+if (Get-Module -ListAvailable -Name Terminal-Icons) {
+    Import-Module -Name Terminal-Icons
 } else {
-    Write-Host "gsudo not found!" -ForegroundColor Red
-    if ($internetConnectionEstablished) {
-        Write-Host "Internet connection established. " -ForegroundColor Green 
-        Write-Host "Installing gsudo via scoop..." -ForegroundColor Gray
-        try {
-            scoop install gsudo
-            Write-Host "gsudo installed successfully." -ForegroundColor Green
-            $reloadpending = $true
-        } catch {
-            Write-Host "Installation failed. Please check the error above." -ForegroundColor Red
-        }
-    } else {
-        Write-Host "No internet connection available. Running gsudo will not work." -ForegroundColor Red
+    Write-Warning "Terminal-Icons module not found."
+}
+
+# ? - gsudo
+function Initialize-gsudo {
+    try {
+        Import-Module 'gsudoModule' -ErrorAction Stop
+        Write-Host "gsudo is installed." -ForegroundColor Green
+        Set-Alias -Name su -Value gsudo
+        Set-Alias -Name sudo -Value gsudo
+        return $true
+    } catch {
+        return $false
     }
 }
-# ? - Catppuccin Colorscheme
-if (!(Get-Module -ListAvailable -Name Catppuccin)) {
-    Write-Host "Catppuccin Module not found!" -ForegroundColor Red
-    
-    if ($internetConnectionEstablished) {
-        $catppuccinTargetClone = Join-Path -Path (($env:PSModulePath -split ';')[0]) -ChildPath 'Catppuccin'
-        
+
+if (-not (Initialize-gsudo)) {
+    if ($script:scoopAvailable) {
+        Write-Host "gsudo module failed to load. Reinstalling via scoop..." -ForegroundColor Yellow
         try {
-            if (!(Test-Path $catppuccinTargetClone)) {
-                Write-Host "Cloning Catppuccin module..." -ForegroundColor Cyan
-                git clone https://github.com/catppuccin/powershell.git $catppuccinTargetClone    
+            $null = Invoke-Expression "scoop install gsudo 2>&1" -ErrorAction Stop
+            if (Get-Command gsudo -ErrorAction SilentlyContinue) {
+                if (Initialize-gsudo) {
+                    Write-Host "gsudo reinstalled successfully." -ForegroundColor Green
+                } else {
+                    Write-Host "gsudo reinstalled but module still fails to load." -ForegroundColor Red
+                    Write-Host "  Try manually: scoop install gsudo" -ForegroundColor Gray
+                }
             } else {
-                Write-Host "Updating Catppuccin module..." -ForegroundColor Cyan
-                git -C $catppuccinTargetClone pull
+                Write-Host "gsudo reinstall reported success but command still missing." -ForegroundColor Red
+                Write-Host "  Try manually: scoop install gsudo" -ForegroundColor Gray
             }
         } catch {
-            Write-Host "Git operation failed: $_" -ForegroundColor Red
-        }
-
-        # Try importing the module after cloning/updating
-        Import-Module Catppuccin -ErrorAction SilentlyContinue
-
-        if (Get-Module -ListAvailable -Name Catppuccin) {
-            Write-Host "Catppuccin module is ready to use." -ForegroundColor Green
-        } else {
-            Write-Host "Failed to load Catppuccin module." -ForegroundColor Red
+            Write-Host "gsudo install/reinstall failed." -ForegroundColor Red
+            Write-Host "  Install manually: scoop install gsudo" -ForegroundColor Gray
         }
     } else {
-        Write-Host "No internet connection. Cannot clone or update Catppuccin module." -ForegroundColor Yellow
+        Write-Host "gsudo not found." -ForegroundColor Red
+        Write-Host "  Install: scoop install gsudo" -ForegroundColor Gray
     }
 }
+#endregion Terminal Package Managers
 
 #region Editor Configuration
-# - Editor Aliases
-# If your favorite editor is not here, add an elseif and ensure that the directory it is installed in exists in your $env:Path
-# Terminal editors
 $terminalEditor = if (Test-CommandExists nvim) { 'nvim' }
                   elseif (Test-CommandExists vim) { 'vim' }
                   else { $null }
 
-# App-based editors
 $appEditor = if (Test-CommandExists code) { 'code' }
               elseif (Test-CommandExists codium) { 'codium' }
               elseif (Test-CommandExists notepad++) { 'notepad++' }
               elseif (Test-CommandExists sublime_text) { 'sublime_text' }
               else { 'notepad' }
 
-# Default editor (prefer terminal editor if available)
 $editor = if ($terminalEditor) { $terminalEditor } else { $appEditor }
-# - Edit Profile
-function Edit-Profile {
-    $editor = $args[0]
-    if ([string]::IsNullOrEmpty($editor)) {
-        $editor = $editor
-    }
-    & $editor $PROFILE.CurrentUserAllHosts
-}
 
-# Useful shortcuts for traversing directories
+function Edit-Profile {
+    param($EditorOverride)
+    if ([string]::IsNullOrEmpty($EditorOverride)) {
+        & $script:editor $PROFILE.CurrentUserAllHosts
+    } else {
+        & $EditorOverride $PROFILE.CurrentUserAllHosts
+    }
+}
+#endregion Editor Configuration
+
+# Navigation and Utilities
 function cd... { Set-Location ..\.. }
 function cd.... { Set-Location ..\..\.. }
 
-# Compute file hashes - useful for checking successful downloads 
-function md5 { Get-FileHash -Algorithm MD5 $args }
-function sha1 { Get-FileHash -Algorithm SHA1 $args }
-function sha256 { Get-FileHash -Algorithm SHA256 $args }
+function md5 { param($Path) Get-FileHash -Algorithm MD5 $Path }
+function sha1 { param($Path) Get-FileHash -Algorithm SHA1 $Path }
+function sha256 { param($Path) Get-FileHash -Algorithm SHA256 $Path }
 
-# Quick shortcut to start an editor to be based on
-# app or terminal
 function aedit { if ($appEditor) { & $appEditor $args } else { Write-Error "No app-based editor found" } }
 function tedit { if ($terminalEditor) { & $terminalEditor $args } else { Write-Error "No terminal editor found" } }
 
-# Drive shortcuts
 function HKLM: { Set-Location HKLM: }
 function HKCU: { Set-Location HKCU: }
 function Env: { Set-Location Env: }
 
-# Set the window title to include the version of PowerShell and whether or not
-# the user is running with admin rights. This is done by concatenating the version
-# string onto the base title and adding "[ADMIN]" if the user is running with admin rights.
-$Host.UI.RawUI.WindowTitle = "PowerShell {0}" -f $PSVersionTable.PSVersion.ToString()
-if ($isAdmin) {
-    $Host.UI.RawUI.WindowTitle += " [ADMIN]"
-}
-
-# Does the the rough equivalent of dir /s /b. For example, dirs *.png is dir /s /b *.png
 function dirs {
-    if ($args.Count -gt 0) {
-        Get-ChildItem -Recurse -Include "$args" | Foreach-Object FullName
+    param([string[]]$Patterns)
+    if ($Patterns.Count -gt 0) {
+        Get-ChildItem -Recurse -Path "$pwd\*" -Include $Patterns | ForEach-Object FullName
     } else {
-        Get-ChildItem -Recurse | Foreach-Object FullName
+        Get-ChildItem -Recurse | ForEach-Object FullName
     }
 }
 
-# Admin Check and Prompt Customization
-$isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-function prompt {
-    if ($isAdmin) { "[" + (Get-Location) + "] # " } else { "[" + (Get-Location) + "] $ " }
-}
-$adminSuffix = if ($isAdmin) { " [ADMIN]" } else { "" }
-$Host.UI.RawUI.WindowTitle = "PowerShell {0}$adminSuffix" -f $PSVersionTable.PSVersion.ToString()
-
-function touch($file) { "" | Out-File $file -Encoding ASCII }
-function ff($name) {
-    Get-ChildItem -recurse -filter "*${name}*" -ErrorAction SilentlyContinue | ForEach-Object {
-        Write-Output "$($_.directory)\$($_)"
+function touch {
+    param($File)
+    if (Test-Path $File) {
+        (Get-Item $File).LastWriteTime = Get-Date
+    } else {
+        New-Item $File -ItemType File | Out-Null
     }
 }
 
-# Network Utilities
-# - Get IP Address
-# ! THIS FUNCTION IS NOT SECURE. USE AT YOUR OWN RISK. DO NOT SHARE YOUR IP ADDRESS.
-# ! IF SOMEONE IS ASKING FOR YOUR PUBLIC IP ADDRESS, 101% YOU ARE BEING SCAMMED.
+function mkcd {
+    param($Path)
+    New-Item -Path $Path -ItemType Directory -Force | Out-Null
+    Set-Location -Path $Path
+}
+
+function trash($Path) {
+    if (Test-Path $Path -PathType Container) {
+        [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory($Path, 'OnlyErrorDialogs', 'SendToRecycleBin')
+    } else {
+        [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile($Path, 'OnlyErrorDialogs', 'SendToRecycleBin')
+    }
+}
+
+function nf { param($Name) New-Item -ItemType "file" -Path . -Name $Name }
+
+function ff {
+    param($Name)
+    Get-ChildItem -Recurse -Filter $Name -File | Select-Object -ExpandProperty FullName
+}
+
+function head {
+    param($Path, $n = 10)
+    Get-Content $Path -Head $n
+}
+
+function tail {
+    param($Path, $n = 10)
+    Get-Content $Path -Tail $n
+}
+
+function sed {
+    param($File, $Find, $Replace)
+    (Get-Content $File) -replace "$Find", "$Replace" | Set-Content $File
+}
+
+function which {
+    param($Name)
+    (Get-Command $Name).Source
+}
+
+function pgrep($Name) {
+    Get-Process -Name $Name -ErrorAction SilentlyContinue
+}
+
+function pkill($Name) {
+    Get-Process -Name $Name -ErrorAction SilentlyContinue | Stop-Process -Force
+}
+
+function k9($Name) {
+    pkill $Name
+}
+
+function uptime {
+    (Get-Date) - (Get-CimInstance -ClassName Win32_OperatingSystem).LastBootUpTime | Select-Object Days, Hours, Minutes, Seconds
+}
+
+function docs {
+    Set-Location -Path ([Environment]::GetFolderPath("MyDocuments"))
+}
+
+function dtop {
+    Set-Location -Path ([Environment]::GetFolderPath("Desktop"))
+}
+
+function cpy { Set-Clipboard $args[0] }
+function pst { Get-Clipboard }
+
+function flushdns { Clear-DnsClientCache }
+
 function Get-IP {
     $publicIpv4 = $null
     $publicIpv6 = $null
-    
     try {
         $publicIpv4 = (Invoke-WebRequest http://ifconfig.me/ip).Content
     } catch {
         Write-Host "Error retrieving public IPv4 address: $($Error[0].Message)"
     }
-    
     try {
         $publicIpv6 = (Invoke-WebRequest http://ifconfig.me/ip6).Content
     } catch {
         Write-Host "Error retrieving public IPv6 address: $($Error[0].Message)"
     }
-    
-    $localIpv4 = (Get-NetIPAddress -AddressFamily IPv4 -InterfaceAlias Ethernet).IPAddress
-    $localIpv6 = (Get-NetIPAddress -AddressFamily IPv6 -InterfaceAlias Ethernet).IPAddress
-    
+    $defaultRoute = Get-NetRoute -DestinationPrefix '0.0.0.0/0' | Select-Object -First 1
+    if ($defaultRoute) {
+        $localIpv4 = (Get-NetIPAddress -InterfaceIndex $defaultRoute.InterfaceIndex -AddressFamily IPv4).IPAddress
+        $localIpv6 = (Get-NetIPAddress -InterfaceIndex $defaultRoute.InterfaceIndex -AddressFamily IPv6).IPAddress
+    }
     Write-Host "Public IP:" -ForegroundColor Yellow
     Write-Host "  IPv4: " -NoNewline -ForegroundColor Green
     Write-Host $publicIpv4
     Write-Host "  IPv6: " -NoNewline -ForegroundColor Blue
     Write-Host $publicIpv6
-    
     Write-Host "Local IP:" -ForegroundColor Yellow
     Write-Host "  IPv4: " -NoNewline -ForegroundColor Green
     Write-Host $localIpv4
     Write-Host "  IPv6: " -NoNewline -ForegroundColor Blue
     Write-Host $localIpv6
 }
-# System Utilities
-# - Check Uptime
-function uptime {
-    if ($PSVersionTable.PSVersion.Major -eq 5) {
-        Get-WmiObject win32_operatingsystem | Select-Object @{Name='LastBootUpTime'; Expression={$_.ConverttoDateTime($_.lastbootuptime)}} | Format-Table -HideTableHeaders
-    } else {
-        net statistics workstation | Select-String "since" | ForEach-Object { $_.ToString().Replace('Statistics since ', '') }
-    }
-}
 
-function grep($regex, $dir) {
-    if ( $dir ) {
-        Get-ChildItem $dir | select-string $regex
-        return
-    }
-    $input | select-string $regex
-}
-
-function unzip ($file) {
-    Write-Output("Extracting", $file, "to", $pwd)
-    $fullFile = Get-ChildItem -Path $pwd -Filter $file | ForEach-Object { $_.FullName }
-    Expand-Archive -Path $fullFile -DestinationPath $pwd
-}
-
-# Christitus HasteBin Utility
 function hb {
-    if ($args.Length -eq 0) {
-        Write-Error "No file path specified."
-        return
-    }
-    
-    $FilePath = $args[0]
-    
-    if (Test-Path $FilePath) {
-        $Content = Get-Content $FilePath -Raw
-    } else {
-        Write-Error "File path does not exist."
-        return
-    }
-    
-    $uri = "http://bin.christitus.com/documents"
+    param($FilePath)
+    if (-not $FilePath) { Write-Error "No file path specified."; return }
+    if (-not (Test-Path $FilePath)) { Write-Error "File path does not exist."; return }
+    $Content = Get-Content $FilePath -Raw
     try {
-        $response = Invoke-RestMethod -Uri $uri -Method Post -Body $Content -ErrorAction Stop
-        $hasteKey = $response.key
-        $url = "http://bin.christitus.com/$hasteKey"
-        Write-Output $url
+        $response = Invoke-RestMethod -Uri "https://bin.christitus.com/documents" -Method Post -Body $Content -ErrorAction Stop
+        Write-Output "https://bin.christitus.com/$($response.key)"
     } catch {
         Write-Error "Failed to upload the document. Error: $_"
     }
 }
 
-function df {
-    get-volume
+function df { get-volume }
+function sysinfo { Get-ComputerInfo }
+
+function weather {
+    param(
+        [Parameter(Position = 0)]
+        [string]$Location
+    )
+    $url = if ($Location) {
+        "https://wttr.in/$($Location -replace ' ', '+')?m&format=v2"
+    } else {
+        "https://wttr.in/?m&format=v2"
+    }
+    try {
+        (Invoke-WebRequest -Uri $url -UseBasicParsing).Content
+    } catch {
+        Write-Error "Failed to fetch weather: $_"
+    }
 }
 
-function sed($file, $find, $replace) {
-    (Get-Content $file).replace("$find", $replace) | Set-Content $file
+# Override ping: calls gping instead (scoop package with per-hop timeline chart)
+# Falls back to stock ping.exe if gping is missing.
+function ping {
+    if (Get-Command gping -ErrorAction SilentlyContinue) {
+        gping @args
+    } else {
+        & "$env:SystemRoot\System32\ping.exe" @args
+    }
 }
 
-function which($name) {
-    Get-Command $name | Select-Object -ExpandProperty Definition
+function clx {
+    $height = [console]::WindowHeight
+    for ($i = 0; $i -lt $height - 1; $i++) { Write-Host "" }
+    [console]::SetCursorPosition(0, 0)
 }
 
-function export($name, $value) {
-    set-item -force -path "env:$name" -value $value;
-}
-
-function pkill($name) {
-    Get-Process $name -ErrorAction SilentlyContinue | Stop-Process
-}
-
-function pgrep($name) {
-    Get-Process $name
-}
-
-function head {
-  param($Path, $n = 10)
-  Get-Content $Path -Head $n
-}
-
-function tail {
-  param($Path, $n = 10)
-  Get-Content $Path -Tail $n
-}
-
-# Quick File Creation
-function nf { param($name) New-Item -ItemType "file" -Path . -Name $name }
-
-# Directory Management
-function mkcd { param($dir) mkdir $dir -Force; Set-Location $dir }
-
-### Quality of Life Aliases
-# Navigation Shortcuts
-function docs { Set-Location -Path $HOME\Documents }
-
-function dtop { Set-Location -Path $HOME\Desktop }
-
-# Quick Access to Editing the Profile
-function ep { vim $PROFILE }
-
-# Simplified Process Management
-function k9 { Stop-Process -Name $args[0] }
-
-# Enhanced Listing
 function la { Get-ChildItem -Path . -Force | Format-Table -AutoSize }
 function ll { Get-ChildItem -Path . -Force -Hidden | Format-Table -AutoSize }
 
+# Aliases
+Set-Alias -Name unzip -Value Expand-Archive
+# Override grep: calls ripgrep (rg). Respects .gitignore, skips binary files, color output.
+function grep {
+    if (Get-Command rg -ErrorAction SilentlyContinue) {
+        rg @args
+    } else {
+        Select-String @args
+    }
+}
+
+# Override cat: calls bat instead. Adds syntax highlighting, line numbers, git gutter.
+function cat {
+    if (Get-Command bat -ErrorAction SilentlyContinue) {
+        bat @args
+    } else {
+        Get-Content @args
+    }
+}
+
 # Git Shortcuts
 function gs { git status }
-
 function ga { git add . }
-
 function gc { param($m) git commit -m "$m" }
-
 function gp { git push }
-
-function g { z Github }
-
+function gpush { git push }
+function gpull { git pull }
+function gcl { git clone $args }
 function gcom {
     git add .
     git commit -m "$args"
@@ -463,543 +388,205 @@ function lazyg {
     git commit -m "$args"
     git push
 }
+function g { __zoxide_z github }
 
-# Quick Access to System Information
-function sysinfo { Get-ComputerInfo }
+# System Utilities
+function winutil { Invoke-RestMethod https://christitus.com/win | Invoke-Expression }
+function winutildev { Invoke-RestMethod https://christitus.com/windev | Invoke-Expression }
 
-# Networking Utilities
-function flushdns { Clear-DnsClientCache }
-
-# Clipboard Utilities
-function cpy { Set-Clipboard $args[0] }
-
-function pst { Get-Clipboard }
-
-#region Christian Lempa Profile
-# TODO: You can check for duplicates of functions and go ahead delete them or do PRs if you want
-# ? The config starts here
-function goto {
-    param (
-        $location
-    )
-
-    Switch ($location) {
-        "prorepos" {
-            Set-Location -Path "$HOME\Work Folders\Project Repos"
-        }
-        "gitrepos" {
-            Set-Location -Path "$HOME\Work Folders\Git Repos"
-        }
-        default {
-            Write-Output "Invalid location"
-        }
-    }
+# Help Function
+function Show-Help {
+    $_t = $PSStyle.Foreground.BrightMagenta
+    $_s = $PSStyle.Foreground.BrightBlue
+    $_c = $PSStyle.Foreground.BrightGreen
+    $_d = $PSStyle.Foreground.BrightWhite
+    $_a = $PSStyle.Foreground.BrightYellow
+    $_m = $PSStyle.Foreground.BrightBlack
+    $_r = $PSStyle.Reset
+    Write-Host @"
+${_t}POWERSHELL PROFILE HELP${_r}
+${_m}========================${_r}
+${_s}EDIT${_r}
+  ${_c}Edit-Profile${_r}            ${_a}->${_r} ${_d}Open profile in editor${_r}
+  ${_c}rld${_r}                     ${_a}->${_r} ${_d}Reload profile${_r}
+${_s}GIT${_r}
+  ${_c}g${_r}                       ${_a}->${_r} ${_d}Go to github directory${_r}
+  ${_c}ga${_r}                      ${_a}->${_r} ${_d}git add .${_r}
+  ${_c}gcl<repo>${_r}               ${_a}->${_r} ${_d}git clone${_r}
+  ${_c}gcom<msg>${_r}               ${_a}->${_r} ${_d}add+commit${_r}
+  ${_c}gp/gpush${_r}                ${_a}->${_r} ${_d}git push${_r}
+  ${_c}gpull${_r}                   ${_a}->${_r} ${_d}git pull${_r}
+  ${_c}gs${_r}                      ${_a}->${_r} ${_d}git status${_r}
+  ${_c}lazyg<msg>${_r}              ${_a}->${_r} ${_d}add+commit+push${_r}
+${_s}FILES${_r}
+  ${_c}dirs[pat]${_r}               ${_a}->${_r} ${_d}Recursive listing${_r}
+  ${_c}ff<name>${_r}                ${_a}->${_r} ${_d}Find files${_r}
+  ${_c}grep<pat>${_r}               ${_a}->${_r} ${_d}Search text${_r}
+  ${_c}head<file>${_r}              ${_a}->${_r} ${_d}First 10 lines${_r}
+  ${_c}tail<file>${_r}              ${_a}->${_r} ${_d}Last 10 lines${_r}
+  ${_c}touch<file>${_r}             ${_a}->${_r} ${_d}Create/update file${_r}
+  ${_c}mkcd<dir>${_r}               ${_a}->${_r} ${_d}Create+enter dir${_r}
+  ${_c}nf<name>${_r}                ${_a}->${_r} ${_d}New file here${_r}
+  ${_c}trash<path>${_r}             ${_a}->${_r} ${_d}Recycle bin${_r}
+${_s}SYSTEM${_r}
+  ${_c}docs${_r}                    ${_a}->${_r} ${_d}Documents folder${_r}
+  ${_c}dtop${_r}                    ${_a}->${_r} ${_d}Desktop folder${_r}
+  ${_c}uptime${_r}                  ${_a}->${_r} ${_d}System uptime${_r}
+  ${_c}Get-IP${_r}                  ${_a}->${_r} ${_d}Show IP addrs${_r}
+  ${_c}flushdns${_r}                ${_a}->${_r} ${_d}Clear DNS cache${_r}
+  ${_c}winutil${_r}                 ${_a}->${_r} ${_d}Run WinUtil${_r}
+${_s}PROCESS${_r}
+  ${_c}k9<name>${_r}                ${_a}->${_r} ${_d}Kill process${_r}
+  ${_c}pgrep<name>${_r}             ${_a}->${_r} ${_d}Find process${_r}
+  ${_c}pkill<name>${_r}             ${_a}->${_r} ${_d}Stop process${_r}
+${_s}UTILITIES${_r}
+  ${_c}cpy${_r}                     ${_a}->${_r} ${_d}Copy clipboard${_r}
+  ${_c}pst${_r}                     ${_a}->${_r} ${_d}Paste clipboard${_r}
+  ${_c}which<name>${_r}             ${_a}->${_r} ${_d}Locate command${_r}
+  ${_c}sed<f><find><rpl>${_r}       ${_a}->${_r} ${_d}Replace in file${_r}
+  ${_c}clx${_r}                     ${_a}->${_r} ${_d}Clear scroll buf${_r}
+${_m}========================${_r}
+"@
 }
 
-# $ENV:KUBECONFIG = ".kube/prod-k8s-clcreative-kubeconfig.yaml;.kube/civo-k8s_test_1-kubeconfig;.kube/k8s_test_1.yml"
+# User Aliases
+Set-Alias code codium
 
-# function kn {
-#     param (
-#         $namespace
-#     )
+# Env Paths
+$Env:KOMOREBI_CONFIG_HOME = '%userprofile%\.config\komorebi'
+$env:PATH += ";%userprofile%\AppData\Local\pnpm"
+# fzf file listing via ripgrep: faster, respects .gitignore, includes hidden files
+$env:FZF_DEFAULT_COMMAND = 'rg --files --hidden --follow --glob "!.git"'
 
-#     if ($namespace -in "default","d") {
-#         kubectl config set-context --current --namespace=default
-#     } else {
-#         kubectl config set-context --current --namespace=$namespace
-#     }
-# }
-
-# powershell completion for datree                               -*- shell-script -*-
-
-function __datree_debug {
-    if ($env:BASH_COMP_DEBUG_FILE) {
-        "$args" | Out-File -Append -FilePath "$env:BASH_COMP_DEBUG_FILE"
-    }
-}
-
-filter __datree_escapeStringWithSpecialChars {
-    $_ -replace '\s|#|@|\$|;|,|''|\{|\}|\(|\)|"|`|\||<|>|&','`$&'
-}
-
-Register-ArgumentCompleter -CommandName 'datree' -ScriptBlock {
-    param(
-            $WordToComplete,
-            $CommandAst,
-            $CursorPosition
-        )
-
-    # Get the current command line and convert into a string
-    $Command = $CommandAst.CommandElements
-    $Command = "$Command"
-
-    __datree_debug ""
-    __datree_debug "========= starting completion logic =========="
-    __datree_debug "WordToComplete: $WordToComplete Command: $Command CursorPosition: $CursorPosition"
-
-    # The user could have moved the cursor backwards on the command-line.
-    # We need to trigger completion from the $CursorPosition location, so we need
-    # to truncate the command-line ($Command) up to the $CursorPosition location.
-    # Make sure the $Command is longer then the $CursorPosition before we truncate.
-    # This happens because the $Command does not include the last space.
-    if ($Command.Length -gt $CursorPosition) {
-        $Command=$Command.Substring(0,$CursorPosition)
-    }
-        __datree_debug "Truncated command: $Command"
-
-    $ShellCompDirectiveError=1
-    $ShellCompDirectiveNoSpace=2
-    $ShellCompDirectiveNoFileComp=4
-    $ShellCompDirectiveFilterFileExt=8
-    $ShellCompDirectiveFilterDirs=16
-
-        # Prepare the command to request completions for the program.
-    # Split the command at the first space to separate the program and arguments.
-    $Program,$Arguments = $Command.Split(" ",2)
-    $RequestComp="$Program __complete $Arguments"
-    __datree_debug "RequestComp: $RequestComp"
-
-    # we cannot use $WordToComplete because it
-    # has the wrong values if the cursor was moved
-    # so use the last argument
-    if ($WordToComplete -ne "" ) {
-        $WordToComplete = $Arguments.Split(" ")[-1]
-    }
-    __datree_debug "New WordToComplete: $WordToComplete"
-
-
-    # Check for flag with equal sign
-    $IsEqualFlag = ($WordToComplete -Like "--*=*" )
-    if ( $IsEqualFlag ) {
-        __datree_debug "Completing equal sign flag"
-        # Remove the flag part
-        $Flag,$WordToComplete = $WordToComplete.Split("=",2)
-    }
-
-    if ( $WordToComplete -eq "" -And ( -Not $IsEqualFlag )) {
-        # If the last parameter is complete (there is a space following it)
-        # We add an extra empty parameter so we can indicate this to the go method.
-        __datree_debug "Adding extra empty parameter"
-        # We need to use `"`" to pass an empty argument a "" or '' does not work!!!
-        $RequestComp="$RequestComp" + ' `"`"'
-    }
-
-    __datree_debug "Calling $RequestComp"
-    #call the command store the output in $out and redirect stderr and stdout to null
-    # $Out is an array contains each line per element
-    Invoke-Expression -OutVariable out "$RequestComp" 2>&1 | Out-Null
-
-
-    # get directive from last line
-    [int]$Directive = $Out[-1].TrimStart(':')
-    if ($Directive -eq "") {
-        # There is no directive specified
-        $Directive = 0
-    }
-    __datree_debug "The completion directive is: $Directive"
-
-    # remove directive (last element) from out
-    $Out = $Out | Where-Object { $_ -ne $Out[-1] }
-    __datree_debug "The completions are: $Out"
-
-    if (($Directive -band $ShellCompDirectiveError) -ne 0 ) {
-        # Error code.  No completion.
-        __datree_debug "Received error from custom completion go code"
-        return
-    }
-
-    $Longest = 0
-    $Values = $Out | ForEach-Object {
-        #Split the output in name and description
-        $Name, $Description = $_.Split("`t",2)
-        __datree_debug "Name: $Name Description: $Description"
-
-        # Look for the longest completion so that we can format things nicely
-        if ($Longest -lt $Name.Length) {
-            $Longest = $Name.Length
-        }
-
-        # Set the description to a one space string if there is none set.
-        # This is needed because the CompletionResult does not accept an empty string as argument
-        if (-Not $Description) {
-            $Description = " "
-        }
-        @{Name="$Name";Description="$Description"}
-    }
-
-
-    $Space = " "
-    if (($Directive -band $ShellCompDirectiveNoSpace) -ne 0 ) {
-        # remove the space here
-        __datree_debug "ShellCompDirectiveNoSpace is called"
-        $Space = ""
-    }
-
-    if (($Directive -band $ShellCompDirectiveNoFileComp) -ne 0 ) {
-        __datree_debug "ShellCompDirectiveNoFileComp is called"
-
-        if ($Values.Length -eq 0) {
-            # Just print an empty string here so the
-            # shell does not start to complete paths.
-            # We cannot use CompletionResult here because
-            # it does not accept an empty string as argument.
-            ""
-            return
-        }
-    }
-
-    if ((($Directive -band $ShellCompDirectiveFilterFileExt) -ne 0 ) -or (($Directive -band $ShellCompDirectiveFilterDirs) -ne 0 )) {
-        __datree_debug "ShellCompDirectiveFilterFileExt ShellCompDirectiveFilterDirs are not supported"
-
-        # return here to prevent the completion of the extensions
-        return
-    }
-
-    $Values = $Values | Where-Object {
-        # filter the result
-        $_.Name -like "$WordToComplete*"
-
-        # Join the flag back if we have a equal sign flag
-        if ( $IsEqualFlag ) {
-            __datree_debug "Join the equal sign flag back to the completion value"
-            $_.Name = $Flag + "=" + $_.Name
-        }
-    }
-
-    # Get the current mode
-    $Mode = (Get-PSReadLineKeyHandler | Where-Object {$_.Key -eq "Tab" }).Function
-    __datree_debug "Mode: $Mode"
-
-    $Values | ForEach-Object {
-
-        # store temporay because switch will overwrite $_
-        $comp = $_
-
-        # PowerShell supports three different completion modes
-        # - TabCompleteNext (default windows style - on each key press the next option is displayed)
-        # - Complete (works like bash)
-        # - MenuComplete (works like zsh)
-        # You set the mode with Set-PSReadLineKeyHandler -Key Tab -Function <mode>
-
-        # CompletionResult Arguments:
-        # 1) CompletionText text to be used as the auto completion result
-        # 2) ListItemText   text to be displayed in the suggestion list
-        # 3) ResultType     type of completion result
-        # 4) ToolTip        text for the tooltip with details about the object
-
-        switch ($Mode) {
-
-            # bash like
-            "Complete" {
-
-                if ($Values.Length -eq 1) {
-                    __datree_debug "Only one completion left"
-
-                    # insert space after value
-                    [System.Management.Automation.CompletionResult]::new($($comp.Name | __datree_escapeStringWithSpecialChars) + $Space, "$($comp.Name)", 'ParameterValue', "$($comp.Description)")
-
-                } else {
-                    # Add the proper number of spaces to align the descriptions
-                    while($comp.Name.Length -lt $Longest) {
-                        $comp.Name = $comp.Name + " "
-                    }
-
-                    # Check for empty description and only add parentheses if needed
-                    if ($($comp.Description) -eq " " ) {
-                        $Description = ""
-                    } else {
-                        $Description = "  ($($comp.Description))"
-                    }
-
-                    [System.Management.Automation.CompletionResult]::new("$($comp.Name)$Description", "$($comp.Name)$Description", 'ParameterValue', "$($comp.Description)")
-                }
-             }
-
-            # zsh like
-            "MenuComplete" {
-                # insert space after value
-                # MenuComplete will automatically show the ToolTip of
-                # the highlighted value at the bottom of the suggestions.
-                [System.Management.Automation.CompletionResult]::new($($comp.Name | __datree_escapeStringWithSpecialChars) + $Space, "$($comp.Name)", 'ParameterValue', "$($comp.Description)")
+# Tools Detection: auto-install via scoop, warn on failure
+$tools = @(
+    @{Name="aria2c"; Display="aria2c"; InstallCmd="scoop install aria2"},
+    @{Name="rg"; Display="ripgrep"; InstallCmd="scoop install ripgrep"},
+    @{Name="gping"; Display="gping"; InstallCmd="scoop install gping"},
+    @{Name="bat"; Display="bat"; InstallCmd="scoop install bat"}
+)
+foreach ($tool in $tools) {
+    if (Get-Command $tool.Name -ErrorAction SilentlyContinue) {
+        Write-Host "$($tool.Display) is installed." -ForegroundColor Green
+    } elseif ($script:scoopAvailable) {
+        Write-Host "$($tool.Display) not found. Attempting install..." -ForegroundColor Yellow
+        try {
+            $null = Invoke-Expression "$($tool.InstallCmd) 2>&1" -ErrorAction Stop
+            if (Get-Command $tool.Name -ErrorAction SilentlyContinue) {
+                Write-Host "$($tool.Display) installed successfully." -ForegroundColor Green
+            } else {
+                Write-Host "$($tool.Display) install reported success but command still missing." -ForegroundColor Red
+                Write-Host "  Try manually: $($tool.InstallCmd)" -ForegroundColor Gray
             }
-
-            # TabCompleteNext and in case we get something unknown
-            Default {
-                # Like MenuComplete but we don't want to add a space here because
-                # the user need to press space anyway to get the completion.
-                # Description will not be shown because thats not possible with TabCompleteNext
-                [System.Management.Automation.CompletionResult]::new($($comp.Name | __datree_escapeStringWithSpecialChars), "$($comp.Name)", 'ParameterValue', "$($comp.Description)")
-            }
+        } catch {
+            Write-Host "$($tool.Display) install failed." -ForegroundColor Red
+            Write-Host "  Install manually: $($tool.InstallCmd)" -ForegroundColor Gray
         }
-
+    } else {
+        Write-Host "$($tool.Display) not found." -ForegroundColor Red
+        Write-Host "  Install: $($tool.InstallCmd)" -ForegroundColor Gray
     }
 }
-# ? The config ends here
 
-#region My Profile
+# carapace
+if (Get-Command carapace -ErrorAction SilentlyContinue) {
+    Write-Host "carapace is installed." -ForegroundColor Green
+    $env:CARAPACE_BRIDGES = 'zsh,fish,bash,inshellisense'
+    Set-PSReadLineKeyHandler -Key Tab -Function MenuComplete
+    carapace _carapace | Out-String | Invoke-Expression
+} elseif ($script:scoopAvailable) {
+    Write-Host "carapace not found. Attempting install..." -ForegroundColor Yellow
+    try {
+        $null = Invoke-Expression "scoop install carapace-bin 2>&1" -ErrorAction Stop
+        if (Get-Command carapace -ErrorAction SilentlyContinue) {
+            Write-Host "carapace installed successfully." -ForegroundColor Green
+            $env:CARAPACE_BRIDGES = 'zsh,fish,bash,inshellisense'
+            Set-PSReadLineKeyHandler -Key Tab -Function MenuComplete
+            carapace _carapace | Out-String | Invoke-Expression
+        } else {
+            Write-Host "carapace install reported success but command still missing." -ForegroundColor Red
+            Write-Host "  Try manually: scoop install carapace-bin" -ForegroundColor Gray
+        }
+    } catch {
+        Write-Host "carapace install failed." -ForegroundColor Red
+        Write-Host "  Install manually: scoop install carapace-bin" -ForegroundColor Gray
+    }
+} else {
+    Write-Host "carapace not found." -ForegroundColor Red
+    Write-Host "  Install: scoop install carapace-bin" -ForegroundColor Gray
+}
 
-# Set custom alias
-# if (Get-Command gping -ErrorAction SilentlyContinue) {
-#     Remove-Item Alias:\ping -ErrorAction SilentlyContinue
-#     Set-Alias ping gping
-#     function ping { gping @args }
-# }
-# else {
-#     Write-Host "No gping found. Will use regular ping instead."
-# }
+# langflow completer
+$env:DO_NOT_TRACK = "true"
+Register-ArgumentCompleter -Native -CommandName langflow -ScriptBlock {
+    param($w, $ca, $cp)
+    $Env:_LANGFLOW_COMPLETE = "complete_powershell"
+    $Env:_TYPER_COMPLETE_ARGS = $ca.ToString()
+    $Env:_TYPER_COMPLETE_WORD_TO_COMPLETE = $w
+    langflow | ForEach-Object {
+        $parts = $_ -Split ":::"
+        [System.Management.Automation.CompletionResult]::new($parts[0], $parts[0], 'ParameterValue', $parts[1])
+    }
+    $Env:_LANGFLOW_COMPLETE = $Env:_TYPER_COMPLETE_ARGS = $Env:_TYPER_COMPLETE_WORD_TO_COMPLETE = ""
+}
 
+# Window Title + Prompt
+$isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+$Host.UI.RawUI.WindowTitle = "PowerShell {0}$(if ($isAdmin) { ' [ADMIN]' } else { '' })" -f $PSVersionTable.PSVersion.ToString()
 
-#region conda initialize
-# !! Contents within this block are managed by 'conda init' !!
+function prompt {
+    if ($isAdmin) { "[" + (Get-Location) + "] # " } else { "[" + (Get-Location) + "] $ " }
+}
+
+# fzf + ripgrep interactive file content search
+function rfv {
+    param([string]$Query = '')
+    $reload = 'reload:rg --column --color=always --smart-case {q} || :'
+    fzf --disabled --ansi --multi `
+        --bind "start:$reload" `
+        --bind "change:$reload" `
+        --bind "enter:execute($editor {1})" `
+        --delimiter : `
+        --preview "bat --style=full --color=always --highlight-line {2} {1}" `
+        --preview-window '~4,+{2}+4/3,<80(up)' `
+        --query "$Query"
+}
+
+# oh-my-posh deferred init
+$poshTheme = if (-not [string]::IsNullOrWhiteSpace($env:POSH_THEME)) { $env:POSH_THEME } else { "$env:POSH_THEMES_PATH/emodipt-extend.omp.json" }
+$shouldInitPosh = (Get-Command oh-my-posh -ErrorAction SilentlyContinue) -and (Test-Path $poshTheme)
+if (-not (Get-Command oh-my-posh -ErrorAction SilentlyContinue)) { Write-Warning "oh-my-posh is not installed." }
+elseif (-not (Test-Path $poshTheme)) { Write-Warning "oh-my-posh theme not found at $poshTheme." }
+
+# zoxide deferred init
+$shouldInitZoxide = $null -ne (Get-Command zoxide -ErrorAction SilentlyContinue)
+if (-not $shouldInitZoxide) { Write-Warning "zoxide is not installed." }
+
+# conda initialize
 If (Test-Path "C:\Users\Epb\miniforge3\Scripts\conda.exe") {
     (& "C:\Users\Epb\miniforge3\Scripts\conda.exe" "shell.powershell" "hook") | Out-String | ?{$_} | Invoke-Expression
 }
-#endregion
 
-# ? - Env Paths
-$Env:KOMOREBI_CONFIG_HOME = '%userprofile%\.config\komorebi'
-$env:PATH += ";%userprofile%\AppData\Local\pnpm"
+clx
 
-# * - Catppuccin Color Scheme Initialization
-# Only run this block if Catppuccin module exists
-if (Get-Module -ListAvailable -Name Catppuccin) {
-    # Import the module (if not already loaded)
-    Import-Module Catppuccin -ErrorAction SilentlyContinue
-    
-    $Flavor = $Catppuccin['Mocha']
-    
-    # Modified prompt function
-    function prompt {
-        $(if (Test-Path variable:/PSDebugContext) { "$($Flavor.Red.Foreground())[DBG]: " }
-            else { '' }) + "$($Flavor.Teal.Foreground())PS $($Flavor.Yellow.Foreground())" + $(Get-Location) +
-                "$($Flavor.Green.Foreground())" + $(if ($NestedPromptLevel -ge 1) { '>>' }) + '> ' + $($PSStyle.Reset)
-    }
+# fastfetch at startup
+if (Get-Command fastfetch -ErrorAction SilentlyContinue) { fastfetch }
 
-    # FZF configuration
-    $ENV:FZF_DEFAULT_OPTS = @"
---color=bg+:$($Flavor.Surface0),bg:$($Flavor.Base),spinner:$($Flavor.Rosewater)
---color=hl:$($Flavor.Red),fg:$($Flavor.Text),header:$($Flavor.Red)
---color=info:$($Flavor.Mauve),pointer:$($Flavor.Rosewater),marker:$($Flavor.Rosewater)
---color=fg+:$($Flavor.Text),prompt:$($Flavor.Mauve),hl+:$($Flavor.Red)
---color=border:$($Flavor.Surface2)
-"@
-
-    # PSReadLine colors
-    $Colors = @{
-        ContinuationPrompt     = $Flavor.Teal.Foreground()
-        Emphasis               = $Flavor.Red.Foreground()
-        Selection              = $Flavor.Surface0.Background()
-        InlinePrediction       = $Flavor.Overlay0.Foreground()
-        ListPrediction         = $Flavor.Mauve.Foreground()
-        ListPredictionSelected = $Flavor.Surface0.Background()
-        Command                = $Flavor.Blue.Foreground()
-        Comment                = $Flavor.Overlay0.Foreground()
-        Default                = $Flavor.Text.Foreground()
-        Error                  = $Flavor.Red.Foreground()
-        Keyword                = $Flavor.Mauve.Foreground()
-        Member                 = $Flavor.Rosewater.Foreground()
-        Number                 = $Flavor.Peach.Foreground()
-        Operator               = $Flavor.Sky.Foreground()
-        Parameter              = $Flavor.Pink.Foreground()
-        String                 = $Flavor.Green.Foreground()
-        Type                   = $Flavor.Yellow.Foreground()
-        Variable               = $Flavor.Lavender.Foreground()
-    }
-    
-    Set-PSReadLineOption -Colors $Colors
-
-    # Formatting colors (PS 7.2+ onlyo)
-    $PSStyle.Formatting.Debug = $Flavor.Sky.Foreground()
-    $PSStyle.Formatting.Error = $Flavor.Red.Foreground()
-    $PSStyle.Formatting.ErrorAccent = $Flavor.Blue.Foreground()
-    $PSStyle.Formatting.FormatAccent = $Flavor.Teal.Foreground()
-    $PSStyle.Formatting.TableHeader = $Flavor.Rosewater.Foreground()
-    $PSStyle.Formatting.Verbose = $Flavor.Yellow.Foreground()
-    $PSStyle.Formatting.Warning = $Flavor.Peach.Foreground()
-}
-else {
-    Write-Warning "Catppuccin module not found - theme not applied" 
-}
-
-# ? - Aria2c CLI
-if (Get-Command aria2c -ErrorAction SilentlyContinue) {
-    Write-Host "aria2c is installed. Loading..." -ForegroundColor Green
-} else {
-    if ($internetConnectionEstablished) {
-        Write-Host "Internet connection established. Installing aria2c via scoop..." -ForegroundColor Green
-        try {
-            scoop install aria2
-            Write-Host "aria2c installed successfully." -ForegroundColor Green
-            $reloadpending = $true
-        } catch {
-            Write-Host "An Error Occurred. Check the error above. Running aria2c will not work." -ForegroundColor Red
-        }
-    } else {
-        Write-Host "No internet connection available. Running aria2c will not work." -ForegroundColor Red
-    }
-}
-
-# ? - Ripgrep
-if (Get-Command rg -ErrorAction SilentlyContinue) {
-    Write-Host "ripgrep is installed. Loading..." -ForegroundColor Green
-} else {
-    if ($internetConnectionEstablished) {
-        Write-Host "Internet connection established. Installing ripgrep via scoop..." -ForegroundColor Green
-        try {
-            scoop install ripgrep
-            Write-Host "ripgrep installed successfully." -ForegroundColor Green
-            $reloadpending = $true
-        } catch {
-            Write-Host "An Error Occurred. Check the error above. Running ripgrep will not work." -ForegroundColor Red
-        }
-    } else {
-        Write-Host "No internet connection available. Running ripgrep will not work." -ForegroundColor Red
-    }
-}
-
-# ? - Carapace
-# Check if carapace is installed then initialize
-if (Get-Command carapace -ErrorAction SilentlyContinue) {
-    Write-Host "carapace is installed. Loading..." -ForegroundColor Green
-    $env:CARAPACE_BRIDGES = 'zsh,fish,bash,inshellisense' # optional
-    Set-PSReadLineOption -Colors @{ "Selection" = "`e[7m" }
-    Set-PSReadlineKeyHandler -Key Tab -Function MenuComplete
-    carapace _carapace | Out-String | Invoke-Expression
-} else {
-    if ($internetConnectionEstablished) {
-        Write-Host "Internet connection established. Installing carapace via scoop..." -ForegroundColor Green
-        try {
-            scoop install extras/carapace-bin
-            Write-Host "carapace installed successfully." -ForegroundColor Green
-            $reloadpending = $true
-        } catch {
-            Write-Host "An Error Occurred. Check the error above. Running carapace will not work." -ForegroundColor Red
-        }
-    } else {
-        Write-Host "No internet connection available. Running carapace will not work." -ForegroundColor Red
-    }
-}
-
-
-# * My Aliases
-# ? - I use codium than code, and simply I would just change the alias 
-Set-Alias code codium
-if (Get-Command fastfetch -ErrorAction SilentlyContinue) {
-    # Write-Host "fastfetch is installed. Loading..." -ForegroundColor Green
-    Set-Alias neofetch fastfetch
-} else {
-    if ($internetConnectionEstablished) {
-        Write-Host "Internet connection established. Installing fastfetch via scoop..." -ForegroundColor Green
-        try {
-            scoop install fastfetch
-            Write-Host "fastfetch installed successfully." -ForegroundColor Green
-            $reloadpending = $true
-        } catch {
-            Write-Host "An Error Occurred. Check the error above. Running fastfetch will not work." -ForegroundColor Red
-        }
-    } else {
-        Write-Host "An Error Occurred. Check the error above. Running fastfetch will not work." -ForegroundColor Red
-    }
-}
-
-# ================================================================================
-
-if (Get-Command oh-my-posh -ErrorAction SilentlyContinue) {
-    Write-Host "oh-my-posh is installed. Loading..." -ForegroundColor Cyan
-    oh-my-posh init pwsh --config $env:POSH_THEMES_PATH/emodipt-extend.omp.json | Invoke-Expression
-} else {
-    if ($internetConnectionEstablished) {
-        Write-Host "Internet connection established. Installing oh-my-posh via scoop..." -ForegroundColor Yellow
-        try {
-            scoop install oh-my-posh
-            Write-Host "oh-my-posh installed successfully. Reloading now..." -ForegroundColor Green
-            $reloadpending = $true
-        } catch {
-            Write-Host "Installation failed. Please check the error above." -ForegroundColor Red
-        }
-    } else {
-        Write-Host "No internet connection available. Running oh-my-posh will not work." -ForegroundColor Red
-    }
-}
-
-# ================================================================================
-
-if (Get-Command zoxide -ErrorAction SilentlyContinue) {
-    Write-Host "zoxide is already installed. Loading..." -ForegroundColor Cyan
-} else {
-    if ($internetConnectionEstablished) {
-        Write-Host "Internet connection established. Installing zoxide via scoop..." -ForegroundColor Yellow
-        try {
-            scoop install zoxide
-            Write-Host "zoxide installed successfully." -ForegroundColor Green
-            $reloadpending = $true
-        } catch {
-            Write-Host "Installation failed. Please check the error above." -ForegroundColor Red
-        }
-    } else {
-        Write-Host "No internet connection available. Running zoxide will not work." -ForegroundColor Red
-    }
-}
-
-# Check if there is a pending reload of the profile
-# If there is, reload the profile to ensure that all the new
-# modules and aliases are available in the current session
-if ($reloadpending -eq $true) {
-    Write-Host "A pending reload has been detected. Reloading now..." -ForegroundColor Magenta
-    # Reloading the profile
-    $reloadpending = $false
-    rld
-} else {
-    Write-Host "No pending reload detected. Continuing..." -ForegroundColor Gray
-    # Clear the screen
-    # cls
-}
-
-Write-Host ""
-
-# * THIS WILL SCROLL THE PROMPT TO THE TOP
-# * Feel free to add anything before this
-function Set-PromptToTop {
-    # Get console window height
-    $height = [console]::WindowHeight
-
-    # Output blank lines to scroll up
-    for ($i = 0; $i -lt $height - 1; $i++) {
-        Write-Host ""
-    }
-
-    # Move cursor to top-left corner (0,0)
-    [console]::SetCursorPosition(0,0)
-}
-# Scroll prompt to top to "hide" previous output
-Set-PromptToTop
-
-# ? - fastfetch
-if (Get-Command fastfetch -ErrorAction SilentlyContinue) {
-    fastfetch
-} else {
-    Write-Host "fastfetch command not found😓. Skipping the cool system info..." -ForegroundColor Red
-}
-# ? - Line Divider
-# If running with elevated privileges and in a command line host, change console color to red
+# Admin Warning
 if ($isAdmin -and $Host.Name -eq "ConsoleHost") {
-    Write-Host ""
-    Write-Host "WARNING: Running with ELEVATED privileges." -ForegroundColor Red
-    Write-Host ""
+    Write-Host "`nWARNING: Running with ELEVATED privileges.`n" -ForegroundColor Red
 } else {
-    Write-Host ""
     Write-Host "Running with normal user privileges." -ForegroundColor Green
-    Write-Host ""
 }
 
+Write-Host "Use 'Show-Help' to list all available functions`n" -ForegroundColor Yellow
 
-# zoxide init 
-# ! MUST BE LAST or else it will not work
-if (Get-Command zoxide -ErrorAction SilentlyContinue) {
-    Remove-Item Alias:\cd -ErrorAction SilentlyContinue
-    Set-Alias cd z
-    function cd {
-        z 
-    }
+# Init Commands (MUST be last)
+if ($shouldInitPosh) {
+    Invoke-Expression (& { (oh-my-posh init pwsh --config $poshTheme | Out-String) })
+}
+if ($shouldInitZoxide) {
     Invoke-Expression (& { (zoxide init powershell | Out-String) })
+    Remove-Item Alias:\cd -ErrorAction SilentlyContinue
+    function global:cd { __zoxide_z @args }
 }
