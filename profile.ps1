@@ -36,8 +36,11 @@ function rld {
     Write-Host "Profile will be reloaded in 5 seconds..." -ForegroundColor Yellow
     Write-Host "Press Ctrl + C to cancel!" -ForegroundColor Yellow
     Start-Sleep -Seconds 5
+    $global:__ps_profile_loaded = $false
     . $PROFILE.CurrentUserAllHosts
 }
+# Allow the profile to be reloaded via either "rld" or "reload"
+Set-Alias reload rld
 #endregion Profile Utilities
 
 #region Terminal Package Managers
