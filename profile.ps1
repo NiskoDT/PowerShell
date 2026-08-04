@@ -97,19 +97,48 @@ Set-PSReadLineKeyHandler -Chord 'Ctrl+RightArrow' -Function ForwardWord
 Set-PSReadLineKeyHandler -Chord 'Ctrl+z' -Function Undo
 Set-PSReadLineKeyHandler -Chord 'Ctrl+y' -Function Redo
 
-# PSReadLine Colors
-Set-PSReadLineOption -Colors @{
-    Command   = '#87CEEB'
-    Parameter = '#98FB98'
-    Operator  = '#FFB6C1'
-    Variable  = '#DDA0DD'
-    String    = '#FFDAB9'
-    Number    = '#B0E0E6'
-    Type      = '#F0E68C'
-    Comment   = '#D3D3D3'
-    Keyword   = '#8367c7'
-    Error     = '#FF6347'
+# Catppuccin module - Mocha flavor color references
+Import-Module Catppuccin
+$Flavor = $Catppuccin['Mocha']
+
+# PSReadLine Colors (Catppuccin Mocha)
+$Colors = @{
+    # Powershell colours
+    ContinuationPrompt     = $Flavor.Teal.Foreground()
+    Emphasis               = $Flavor.Red.Foreground()
+    Selection              = $Flavor.Surface0.Background()
+
+    # PSReadLine prediction colours
+    InlinePrediction       = $Flavor.Overlay0.Foreground()
+    ListPrediction         = $Flavor.Mauve.Foreground()
+    ListPredictionSelected = $Flavor.Surface0.Background()
+
+    # Syntax highlighting
+    Command                = $Flavor.Blue.Foreground()
+    Comment                = $Flavor.Overlay0.Foreground()
+    Default                = $Flavor.Text.Foreground()
+    Error                  = $Flavor.Red.Foreground()
+    Keyword                = $Flavor.Mauve.Foreground()
+    Member                 = $Flavor.Rosewater.Foreground()
+    Number                 = $Flavor.Peach.Foreground()
+    Operator               = $Flavor.Sky.Foreground()
+    Parameter              = $Flavor.Pink.Foreground()
+    String                 = $Flavor.Green.Foreground()
+    Type                   = $Flavor.Yellow.Foreground()
+    Variable               = $Flavor.Lavender.Foreground()
 }
+
+# Set the colours
+Set-PSReadLineOption -Colors $Colors
+
+# PowerShell formatting colors (Catppuccin Mocha) - PS 7.2+
+$PSStyle.Formatting.Debug        = $Flavor.Sky.Foreground()
+$PSStyle.Formatting.Error        = $Flavor.Red.Foreground()
+$PSStyle.Formatting.ErrorAccent  = $Flavor.Blue.Foreground()
+$PSStyle.Formatting.FormatAccent = $Flavor.Teal.Foreground()
+$PSStyle.Formatting.TableHeader  = $Flavor.Rosewater.Foreground()
+$PSStyle.Formatting.Verbose      = $Flavor.Yellow.Foreground()
+$PSStyle.Formatting.Warning      = $Flavor.Peach.Foreground()
 
 # ? - Terminal-Icons
 if (Get-Module -ListAvailable -Name Terminal-Icons) {
